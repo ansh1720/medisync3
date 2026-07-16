@@ -68,9 +68,10 @@ const postSchema = new mongoose.Schema({
     type: String,
     enum: {
       values: [
-        'general', 'symptoms', 'treatment', 'prevention', 'mental_health',
-        'nutrition', 'exercise', 'medication', 'chronic_conditions',
-        'emergency', 'support', 'experiences', 'questions', 'tips'
+        'general', 'mental_health', 'nutrition', 'fitness', 'chronic_conditions',
+        'womens_health', 'mens_health', 'pediatrics', 'seniors', 'medications',
+        'support', 'symptoms', 'treatment', 'prevention', 'exercise',
+        'medication', 'emergency', 'experiences', 'questions', 'tips'
       ],
       message: 'Invalid post category'
     },

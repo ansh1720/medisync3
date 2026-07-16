@@ -10,6 +10,7 @@ import {
 } from '@heroicons/react/24/outline';
 import Navbar from '../components/Navbar';
 import { useInteraction } from '../context/InteractionContext';
+import { diseaseAPI } from '../utils/api';
 import toast from 'react-hot-toast';
 
 function EnhancedDiseaseSearch() {
@@ -56,20 +57,11 @@ function EnhancedDiseaseSearch() {
         trackSearch(query);
       }
       
-      // Use production API URL or localhost
-      const API_BASE = window.location.hostname === 'ansh1720.github.io' 
-        ? 'https://medisync-api-9043.onrender.com/api' 
-        : 'http://localhost:5000/api';
+      const response = isEnhancedSearch 
+        ? await diseaseAPI.enhancedSearch(query)
+        : await diseaseAPI.searchDiseases({ query });
       
-      let url;
-      if (isEnhancedSearch) {
-        url = `${API_BASE}/diseases/enhanced-search?query=${encodeURIComponent(query)}`;
-      } else {
-        url = `${API_BASE}/diseases/search?query=${encodeURIComponent(query)}`;
-      }
-
-      const response = await fetch(url);
-      const data = await response.json();
+      const data = response.data;
 
       if (data.success) {
         setDiseases(data.data || []);
@@ -100,15 +92,8 @@ function EnhancedDiseaseSearch() {
     }
 
     try {
-      // Use production API URL or localhost
-      const API_BASE = window.location.hostname === 'ansh1720.github.io' 
-        ? 'https://medisync-api-9043.onrender.com/api' 
-        : 'http://localhost:5000/api';
-        
-      const response = await fetch(
-        `${API_BASE}/diseases/symptom-analysis?symptoms=${encodeURIComponent(symptoms)}`
-      );
-      const data = await response.json();
+      const response = await diseaseAPI.symptomAnalysis(symptoms);
+      const data = response.data;
 
       if (data.success && data.data.length > 0) {
         setSuggestions(data.data.slice(0, 5)); // Top 5 suggestions

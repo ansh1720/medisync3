@@ -24,6 +24,7 @@ import {
 } from 'chart.js';
 import { Bar, Doughnut, Radar } from 'react-chartjs-2';
 import Navbar from '../components/Navbar';
+import { diseaseAPI } from '../utils/api';
 import toast from 'react-hot-toast';
 
 // Register Chart.js components
@@ -58,18 +59,10 @@ function EnhancedDiseaseDetails() {
     try {
       setIsLoading(true);
       
-      // Use production API URL or localhost
-      const API_BASE = window.location.hostname === 'ansh1720.github.io' 
-        ? 'https://medisync-api-9043.onrender.com/api' 
-        : 'http://localhost:5000/api';
-        
-      const response = await fetch(
-        `${API_BASE}/diseases/details/${encodeURIComponent(diseaseName)}`
-      );
+      const response = await diseaseAPI.getDiseaseByName(diseaseName);
       
-      if (response.ok) {
-        const data = await response.json();
-        setDisease(data.data);
+      if (response.data && response.data.success) {
+        setDisease(response.data.data);
       } else {
         toast.error('Disease not found');
         navigate('/diseases');

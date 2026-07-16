@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   ChartBarIcon,
   MagnifyingGlassIcon,
@@ -20,6 +20,7 @@ import { useInteraction } from '../context/InteractionContext';
 
 // Quick Search Widget - adapts based on search history
 export const QuickSearchWidget = () => {
+  const navigate = useNavigate();
   const { userInteractions, trackSearch } = useInteraction();
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -29,7 +30,7 @@ export const QuickSearchWidget = () => {
   const handleQuickSearch = (query) => {
     trackSearch(query, 'quick');
     // Navigate to disease search with query
-    window.location.href = `/diseases?q=${encodeURIComponent(query)}`;
+    navigate('/diseases', { state: { initialSearch: query } });
   };
 
   return (

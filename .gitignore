@@ -137,3 +137,16 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Project-specific
+RAZORPAY_SETUP.md
+implementation_plan.md
+*.md.bak
+scratch_*.js
+.agents/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo

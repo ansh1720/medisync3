@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Consultation Controller
  * Clean rebuild – every function uses req.user.userId (set by auth middleware)
  * Doctor model uses `userRef` to link to User.
@@ -28,22 +28,17 @@ exports.getDoctors = async (req, res) => {
     if (minRating) filter['rating.average'] = { $gte: Number(minRating) };
     if (maxFee) filter['consultationFee.amount'] = { $lte: Number(maxFee) };
 
-    let query;
+    const queryFilter = { ...filter };
     if (search) {
-      query = Doctor.find({
-        ...filter,
-        $or: [
-          { name: new RegExp(search, 'i') },
-          { specialty: new RegExp(search, 'i') },
-          { bio: new RegExp(search, 'i') }
-        ]
-      });
-    } else {
-      query = Doctor.find(filter);
+      queryFilter.$or = [
+        { name: new RegExp(search, 'i') },
+        { specialty: new RegExp(search, 'i') },
+        { bio: new RegExp(search, 'i') }
+      ];
     }
 
-    const total = await Doctor.countDocuments(filter);
-    const doctors = await query
+    const total = await Doctor.countDocuments(queryFilter);
+    const doctors = await Doctor.find(queryFilter)
       .populate('hospitalAffiliation', 'name address')
       .sort({ 'rating.average': -1 })
       .skip((Number(page) - 1) * Number(limit))

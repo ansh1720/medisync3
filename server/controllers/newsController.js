@@ -8,6 +8,13 @@ let newsCache = {
   cacheDuration: 10 * 60 * 1000 // 10 minutes
 };
 
+// Cache for health alerts
+let alertsCache = {
+  articles: [],
+  lastFetch: null,
+  cacheDuration: 10 * 60 * 1000 // 10 minutes
+};
+
 /**
  * Fetch news from WHO RSS feeds
  */
@@ -18,16 +25,14 @@ const fetchWHONews = async () => {
       'https://www.who.int/feeds/entity/csr/don/en/rss.xml'
     ];
     
-    const allArticles = [];
-    
-    for (const feedUrl of feeds) {
+    const feedPromises = feeds.map(async (feedUrl) => {
       try {
         const response = await axios.get(feedUrl, { timeout: 8000 });
         const parser = new xml2js.Parser();
         const result = await parser.parseStringPromise(response.data);
         
         if (result.rss && result.rss.channel && result.rss.channel[0].item) {
-          const articles = result.rss.channel[0].item.map((item, index) => ({
+          return result.rss.channel[0].item.map((item, index) => ({
             id: `who-${Date.now()}-${index}`,
             title: item.title[0],
             content: item.description ? item.description[0] : 'Full article available at source.',
@@ -35,14 +40,15 @@ const fetchWHONews = async () => {
             source: 'WHO',
             publishedAt: new Date(item.pubDate[0]),
           }));
-          allArticles.push(...articles);
         }
       } catch (err) {
         console.warn('WHO feed error:', err.message);
       }
-    }
+      return [];
+    });
     
-    return allArticles;
+    const results = await Promise.all(feedPromises);
+    return results.flat();
   } catch (error) {
     console.error('WHO fetch error:', error);
     return [];
@@ -208,10 +214,10 @@ exports.getAlerts = async (req, res) => {
     const now = Date.now();
 
     // Check if cache is valid
-    const isCacheValid = newsCache.lastFetch && (now - newsCache.lastFetch) < newsCache.cacheDuration;
+    const isCacheValid = alertsCache.lastFetch && (now - alertsCache.lastFetch) < alertsCache.cacheDuration;
 
     // Fetch fresh news if cache is invalid or empty
-    if (!isCacheValid || newsCache.articles.length === 0) {
+    if (!isCacheValid || alertsCache.articles.length === 0) {
       console.log('🚨 Fetching health alerts from WHO and CDC...');
       
       // Fetch from WHO and CDC only (for critical alerts)
@@ -221,25 +227,25 @@ exports.getAlerts = async (req, res) => {
       ]);
 
       // Combine and sort by date (newest first)
-      newsCache.articles = [
+      alertsCache.articles = [
         ...whoArticles,
         ...cdcArticles
       ].sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
 
-      newsCache.lastFetch = now;
+      alertsCache.lastFetch = now;
 
-      console.log(`✅ Fetched ${newsCache.articles.length} alerts`);
+      console.log(`✅ Fetched ${alertsCache.articles.length} alerts`);
     }
 
     // Return only the 5 most recent critical alerts
-    const recentAlerts = newsCache.articles.slice(0, 5);
+    const recentAlerts = alertsCache.articles.slice(0, 5);
 
     res.json({
       success: true,
       data: {
         alerts: recentAlerts,
-        total: newsCache.articles.length,
-        lastUpdated: new Date(newsCache.lastFetch)
+        total: alertsCache.articles.length,
+        lastUpdated: new Date(alertsCache.lastFetch)
       }
     });
 

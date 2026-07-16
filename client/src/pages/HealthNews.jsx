@@ -1,13 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { NewspaperIcon, ArrowUpIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
-import axios from 'axios';
+import { newsAPI } from '../utils/api';
 import toast from 'react-hot-toast';
 import Navbar from '../components/Navbar';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 
-  (window.location.hostname === 'ansh1720.github.io' 
-    ? 'https://medisync-api-9043.onrender.com/api' 
-    : 'http://localhost:5000/api');
 
 function HealthNews() {
   const [articles, setArticles] = useState([]);
@@ -58,10 +53,7 @@ function HealthNews() {
       const page = reset ? 1 : currentPage;
       
       try {
-        const response = await axios.get(`${API_BASE_URL}/news/v2`, {
-          params: { page, limit: 20 },
-          timeout: 60000
-        });
+        const response = await newsAPI.getNews({ page, limit: 20 });
 
         if (response.data.success) {
           const newArticles = response.data.data.articles;

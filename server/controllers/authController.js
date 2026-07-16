@@ -60,7 +60,8 @@ const register = async (req, res, next) => {
       password, // This will be hashed by the User model
       role,
       phone,
-      language
+      language,
+      lastLogin: new Date()
     });
 
     await user.save();
@@ -69,10 +70,6 @@ const register = async (req, res, next) => {
 
     // Generate token
     const token = generateToken(user._id);
-
-    // Update last login
-    user.lastLogin = new Date();
-    await user.save();
 
     res.status(201).json({
       success: true,

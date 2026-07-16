@@ -8,6 +8,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
+const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const { createServer } = require('http');
 const path = require('path');
@@ -34,12 +35,15 @@ const { startAppointmentReminder } = require('./utils/appointmentReminder');
 
 // Global middleware
 app.use(helmet());
+app.use(compression());
 
 // CORS configuration - allow both development and production origins
 const allowedOrigins = [
   process.env.CLIENT_URL || "http://localhost:3000",
   "http://localhost:5173",
+  "https://localhost:5173",
   "http://localhost:3000",
+  "https://localhost:3000",
   "https://ansh1720.github.io",
   "https://ansh1720.github.io/medisync2"
 ];

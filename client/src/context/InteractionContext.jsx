@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo } from 'react';
 
 const InteractionContext = createContext();
 
@@ -264,7 +264,7 @@ export const InteractionProvider = ({ children }) => {
     }));
   };
 
-  const value = {
+  const value = useMemo(() => ({
     userInteractions,
     trackFeatureUsage,
     trackSearch,
@@ -276,7 +276,7 @@ export const InteractionProvider = ({ children }) => {
     getDynamicDashboardLayout,
     updatePreferredFeatures,
     clearRecentSearches
-  };
+  }), [userInteractions]);
 
   return (
     <InteractionContext.Provider value={value}>

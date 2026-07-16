@@ -34,10 +34,14 @@ api.interceptors.response.use(
   },
   (error) => {
     // Only handle 401 errors automatically for session management
-    if (error.response?.status === 401) {
+    // Skip auth endpoints (login/register) - they return 401 for bad credentials, not expired sessions
+    const url = error.config?.url || '';
+    const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/register');
+    
+    if (error.response?.status === 401 && !isAuthEndpoint) {
       localStorage.removeItem('medisync_token');
       localStorage.removeItem('medisync_user');
-      window.location.href = '/login';
+      window.location.href = '/medisync2/login';
       toast.error('Session expired. Please login again.');
     }
     
@@ -69,6 +73,8 @@ export const riskAPI = {
 export const diseaseAPI = {
   getDiseases: (params) => api.get('/diseases', { params }),
   searchDiseases: (params) => api.get('/diseases/search', { params }),
+  enhancedSearch: (query) => api.get('/diseases/enhanced-search', { params: { query } }),
+  symptomAnalysis: (symptoms) => api.get('/diseases/symptom-analysis', { params: { symptoms } }),
   getDiseaseById: (id) => api.get(`/diseases/${id}`),
   getDiseaseByName: (name) => api.get(`/diseases/details/${name}`),
   createDisease: (data) => api.post('/diseases', data),
@@ -129,7 +135,9 @@ export const equipmentAPI = {
 // Forum API
 export const forumAPI = {
   getPosts: (params) => api.get('/forum/posts', { params }),
+  getPost: (postId) => api.get(`/forum/posts/${postId}`),
   createPost: (data) => api.post('/forum/posts', data),
+  getComments: (postId, params) => api.get(`/forum/posts/${postId}/comments`, { params }),
   addComment: (postId, comment) => api.post(`/forum/posts/${postId}/comments`, comment),
   likePost: (postId) => api.post(`/forum/posts/${postId}/like`),
 };

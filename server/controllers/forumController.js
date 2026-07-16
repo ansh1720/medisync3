@@ -31,7 +31,7 @@ exports.getPosts = async (req, res) => {
     } = req.query;
 
     // Build filter
-    const filter = { status: 'published' };
+    const filter = { moderationStatus: 'approved' };
     
     if (category) {
       filter.category = category;
@@ -53,8 +53,8 @@ exports.getPosts = async (req, res) => {
     const sortOptions = {
       newest: { createdAt: -1 },
       oldest: { createdAt: 1 },
-      popular: { 'stats.likes': -1, 'stats.comments': -1 },
-      trending: { 'stats.views': -1, createdAt: -1 }
+      popular: { likes: -1, commentCount: -1 },
+      trending: { views: -1, createdAt: -1 }
     };
 
     // Execute query
@@ -63,16 +63,33 @@ exports.getPosts = async (req, res) => {
       Post.find(filter)
         .populate('userId', 'name')
         .select('-body') // Exclude full body for list view
-        .sort(sortOptions[sortBy])
+        .sort(sortOptions[sortBy] || sortOptions.newest)
         .skip(skip)
         .limit(parseInt(limit)),
       Post.countDocuments(filter)
     ]);
 
+    // Add isLiked and normalize stats shape for the frontend
+    const currentUserId = req.user?.userId;
+    const normalizedPosts = posts.map(post => {
+      const p = post.toObject();
+      return {
+        ...p,
+        isLiked: currentUserId
+          ? (p.likedBy || []).some(id => id.toString() === currentUserId.toString())
+          : false,
+        stats: {
+          likes: p.likes || 0,
+          comments: p.commentCount || 0,
+          views: p.views || 0
+        }
+      };
+    });
+
     res.json({
       success: true,
       data: {
-        posts,
+        posts: normalizedPosts,
         pagination: {
           page: parseInt(page),
           limit: parseInt(limit),
@@ -118,7 +135,7 @@ exports.createPost = async (req, res) => {
       category,
       tags,
       isAnonymous,
-      status: 'published'
+      moderationStatus: 'approved'
     });
 
     await post.save();
@@ -165,10 +182,9 @@ exports.getPostById = async (req, res) => {
 
     const post = await Post.findById(id)
       .populate('userId', 'name')
-      .populate('comments.userId', 'name')
-      .populate('comments.replies.userId', 'name');
+      .populate('comments.userId', 'name');
 
-    if (!post || post.status !== 'published') {
+    if (!post || post.moderationStatus !== 'approved') {
       return res.status(404).json({
         success: false,
         message: 'Post not found'
@@ -176,12 +192,27 @@ exports.getPostById = async (req, res) => {
     }
 
     // Increment view count
-    post.stats.views = (post.stats.views || 0) + 1;
+    post.views = (post.views || 0) + 1;
     await post.save();
+
+    // Add isLiked + normalized stats for frontend
+    const currentUserId = req.user?.userId;
+    const postObj = post.toObject();
+    const responsePost = {
+      ...postObj,
+      isLiked: currentUserId
+        ? (postObj.likedBy || []).some(id => id.toString() === currentUserId.toString())
+        : false,
+      stats: {
+        likes: postObj.likes || 0,
+        comments: postObj.commentCount || 0,
+        views: postObj.views || 0
+      }
+    };
 
     res.json({
       success: true,
-      data: post
+      data: responsePost
     });
 
   } catch (error) {
@@ -211,7 +242,7 @@ exports.addComment = async (req, res) => {
     const { content, parentCommentId, isAnonymous = false } = req.body;
 
     const post = await Post.findById(id);
-    if (!post || post.status !== 'published') {
+    if (!post || post.moderationStatus !== 'approved') {
       return res.status(404).json({
         success: false,
         message: 'Post not found'
@@ -225,27 +256,13 @@ exports.addComment = async (req, res) => {
       createdAt: new Date()
     };
 
-    if (parentCommentId) {
-      // Add as reply to existing comment
-      const parentComment = post.comments.id(parentCommentId);
-      if (!parentComment) {
-        return res.status(404).json({
-          success: false,
-          message: 'Parent comment not found'
-        });
-      }
-      parentComment.replies.push(comment);
-    } else {
-      // Add as top-level comment
-      post.comments.push(comment);
-    }
+    // Add comment to post's flat comments array
+    post.comments.push(comment);
 
-    post.stats.comments = post.comments.length + 
-      post.comments.reduce((total, c) => total + c.replies.length, 0);
-
+    post.commentCount = (post.commentCount || 0) + 1;
+    post.lastActivityAt = new Date();
     await post.save();
     await post.populate('comments.userId', 'name');
-    await post.populate('comments.replies.userId', 'name');
 
     // Send real-time notification
     try {
@@ -253,10 +270,8 @@ exports.addComment = async (req, res) => {
       if (io) {
         io.emit('new_comment', {
           postId: post._id,
-          comment: parentCommentId ? 
-            parentComment.replies[parentComment.replies.length - 1] :
-            post.comments[post.comments.length - 1],
-          isReply: !!parentCommentId
+          comment: post.comments[post.comments.length - 1],
+          isReply: false
         });
       }
     } catch (socketError) {
@@ -267,9 +282,7 @@ exports.addComment = async (req, res) => {
       success: true,
       data: {
         postId: post._id,
-        comment: parentCommentId ? 
-          parentComment.replies[parentComment.replies.length - 1] :
-          post.comments[post.comments.length - 1]
+        comment: post.comments[post.comments.length - 1]
       },
       message: 'Comment added successfully'
     });
@@ -293,7 +306,6 @@ exports.getPostComments = async (req, res) => {
 
     const post = await Post.findById(id)
       .populate('comments.userId', 'name')
-      .populate('comments.replies.userId', 'name')
       .select('comments');
 
     if (!post) {
@@ -350,26 +362,29 @@ exports.togglePostLike = async (req, res) => {
     const { id } = req.params;
 
     const post = await Post.findById(id);
-    if (!post || post.status !== 'published') {
+    if (!post || post.moderationStatus !== 'approved') {
       return res.status(404).json({
         success: false,
         message: 'Post not found'
       });
     }
 
-    const userId = req.user.id;
-    const likeIndex = post.likes.indexOf(userId);
+    // Use likedBy array (ObjectIds) — not the likes Number field
+    const userId = req.user.userId;
+    const likeIndex = post.likedBy.findIndex(
+      (likedId) => likedId.toString() === userId.toString()
+    );
 
     if (likeIndex > -1) {
       // Remove like
-      post.likes.splice(likeIndex, 1);
-      post.stats.likes = post.likes.length;
+      post.likedBy.splice(likeIndex, 1);
     } else {
       // Add like
-      post.likes.push(userId);
-      post.stats.likes = post.likes.length;
+      post.likedBy.push(userId);
     }
 
+    // Keep the likes counter in sync
+    post.likes = post.likedBy.length;
     await post.save();
 
     res.json({
@@ -377,7 +392,7 @@ exports.togglePostLike = async (req, res) => {
       data: {
         postId: post._id,
         liked: likeIndex === -1,
-        totalLikes: post.likes.length
+        totalLikes: post.likes
       },
       message: likeIndex === -1 ? 'Post liked' : 'Post unliked'
     });
